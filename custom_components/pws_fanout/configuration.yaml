@@ -1,0 +1,24 @@
+# Example configuration for PWS Webhook Fanout integration
+# Add this to your Home Assistant configuration.yaml file
+
+pws_fanout:
+  # Optional: Custom webhook ID (default: "pws_fanout")
+  # The full webhook URL will be: http://your-ha-instance:8123/api/webhook/<webhook_id>
+  webhook_id: pws_fanout
+  
+  # Required: List of destinations to forward webhook data to
+  destinations:
+    # Example: Forward to another Home Assistant instance
+    - url: http://192.168.0.220:8123/api/webhook/sadfasfasafd
+      method: POST  # HTTP method: GET or POST (default: POST)
+      timeout: 10   # Request timeout in seconds (default: 10)
+    
+    # Example: Forward to external service
+    - url: http://www.bla.com/post.php
+      method: POST
+      timeout: 15
+    
+    # You can add more destinations as needed:
+    # - url: http://example.com/api/webhook/another-endpoint
+    #   method: GET
+    #   timeout: 10

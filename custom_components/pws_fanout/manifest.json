@@ -1,0 +1,12 @@
+{
+  "domain": "pws_fanout",
+  "name": "PWS Webhook Fanout",
+  "codeowners": [],
+  "config_flow": false,
+  "dependencies": ["webhook"],
+  "documentation": "https://github.com/altera2015/pws_fanout",
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "requirements": [],
+  "version": "1.0.0"
+}
