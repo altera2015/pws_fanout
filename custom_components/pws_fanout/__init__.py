@@ -87,26 +87,44 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     ) -> None:
         """Handle incoming webhook request."""
         _LOGGER.info(
-            "Received webhook: method=%s, query_params=%s",
+            "Received webhook: method=%s, query_params=%s, content_type=%s",
             request.method,
             dict(request.query),
+            request.content_type,
         )
 
         # Get query parameters
         query_params = dict(request.query)
 
-        # Read request body
+        # Get content type from original request
+        content_type = request.content_type or ""
+
+        # Read request body and try to parse as form data
+        form_data = None
+        raw_body = b""
+
         try:
-            body = await request.read()
-            if body:
-                _LOGGER.debug("Body size: %d bytes", len(body))
+            # Try to parse as form data (for ECOWITT and similar devices)
+            if "form" in content_type.lower() or "urlencoded" in content_type.lower():
+                post_data = await request.post()
+                form_data = dict(post_data)
+                _LOGGER.debug("Parsed form data with %d fields", len(form_data))
+            else:
+                # Fall back to raw body for other content types (JSON, etc.)
+                raw_body = await request.read()
+                if raw_body:
+                    _LOGGER.debug("Raw body size: %d bytes", len(raw_body))
         except Exception as err:
             _LOGGER.error("Error reading request body: %s", err)
-            body = b""
+            # Try raw body as fallback
+            try:
+                raw_body = await request.read()
+            except Exception:
+                raw_body = b""
 
         # Forward to all destinations asynchronously
         tasks = [
-            forward_to_destination(hass, dest, query_params, body)
+            forward_to_destination(hass, dest, query_params, form_data, raw_body, content_type)
             for dest in destinations
         ]
 
@@ -141,7 +159,9 @@ async def forward_to_destination(
     hass: HomeAssistant,
     destination: dict[str, Any],
     query_params: dict[str, Any],
-    body: bytes,
+    form_data: dict[str, Any] | None,
+    raw_body: bytes,
+    original_content_type: str,
 ) -> None:
     """Forward webhook data to a single destination."""
     url = destination[CONF_URL]
@@ -167,8 +187,18 @@ async def forward_to_destination(
         timeout_obj = aiohttp.ClientTimeout(total=timeout)
 
         if method == "POST":
+            # Determine what data to send
+            if form_data is not None:
+                # Forward as form data (aiohttp will encode it properly)
+                data = form_data
+                _LOGGER.debug("Forwarding form data with %d fields", len(form_data))
+            else:
+                # Forward raw body with original content type
+                data = raw_body
+                _LOGGER.debug("Forwarding raw body (%d bytes)", len(raw_body))
+
             async with session.post(
-                url, params=params, data=body, timeout=timeout_obj
+                url, params=params, data=data, timeout=timeout_obj
             ) as response:
                 _LOGGER.info(
                     "Forwarded (POST) to %s: status=%s", url, response.status
